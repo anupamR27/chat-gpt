@@ -137,3 +137,42 @@ m = model.to(device)
 
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
 print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
+
+
+# create a PyTorch optimizer
+optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+# for iter in range(max_iters):
+
+#     # sample a batch of data
+#     xb, yb = get_batch('train')
+
+#     # give the batch to the model
+#     logits, loss = model(xb, yb)
+
+#     # clear old gradients
+#     optimizer.zero_grad(set_to_none=True)
+
+#     # calculate gradients
+#     loss.backward()
+
+#     # update the model's parameters
+#     optimizer.step()
+for iter in range(max_iters):
+
+    # sample a batch of data
+    xb, yb = get_batch('train')
+
+    # evaluate the loss
+    logits, loss = model(xb, yb)
+
+    if iter % eval_interval == 0:
+        print(f"step {iter}: loss {loss.item():.4f}")
+
+    # clear old gradients
+    optimizer.zero_grad(set_to_none=True)
+
+    # calculate gradients
+    loss.backward()
+
+    # update the model's parameters
+    optimizer.step()
