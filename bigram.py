@@ -75,14 +75,52 @@ def estimate_loss():
     model.train()
     return out
 
+
+class Head(nn.Module):
+    """one head of self-attention"""
+
+    def __init__(self, head_size):
+        super().__init__()
+        self.key = nn.Linear(n_embd, head_size, bias=False)
+        self.query = nn.Linear(n_embd, head_size, bias=False)
+        self.value = nn.Linear(n_embd, head_size, bias=False)
+
+        self.register_buffer(
+            'tril',
+            torch.tril(torch.ones(block_size, block_size))
+        )
+
+    def forward(self, x):
+        B, T, C = x.shape
+
+        k = self.key(x)
+        q = self.query(x)
+
+        wei = q @ k.transpose(-2, -1) * k.shape[-1]**-0.5
+
+        wei = wei.masked_fill(
+            self.tril[:T, :T] == 0,
+            float('-inf')
+        )
+
+        wei = F.softmax(wei, dim=-1)
+
+        v = self.value(x)
+        out = wei @ v
+
+        return out
+
+    
 # super simple bigram model
 class BigramLanguageModel(nn.Module):
 
     def __init__(self, vocab_size):
         super().__init__()
         # each token directly reads off the logits for the next token from a lookup table
-        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
+        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        self.sa_head = Head(n_embd)
+        self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
@@ -91,10 +129,11 @@ class BigramLanguageModel(nn.Module):
         # T = 8 characters in each sequence
         # C = 65 possible next characters
 
-        ltok_emb = self.token_embedding_table(idx)
+        tok_emb = self.token_embedding_table(idx)
         pos_emb = self.position_embedding_table(torch.arange(T, device=device))
         x = tok_emb + pos_emb
-
+        x = self.sa_head(x)
+        logits = self.lm_head(x)
         if targets is None:
             loss = None
         else:
@@ -106,18 +145,20 @@ class BigramLanguageModel(nn.Module):
         return logits, loss   
 
     def generate(self, idx, max_new_tokens):
-        # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
-            # get the predictions
-            logits, loss = self(idx)
-            # focus only on the last time step
+
+            idx_cond = idx[:, -block_size:]
+
+            logits, loss = self(idx_cond)
+
             logits = logits[:, -1, :]
-            # apply softmax to get probabilities
+
             probs = F.softmax(logits, dim=-1)
-            # sample from the distribution
+
             idx_next = torch.multinomial(probs, num_samples=1)
-            # append sampled index to the running sequence
+
             idx = torch.cat((idx, idx_next), dim=1)
+
         return idx
 
 
