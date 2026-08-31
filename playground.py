@@ -31,7 +31,7 @@ k = key(x)
 q = query(x)
 v = value(x)
 
-wei = q @ k.transpose(-2, -1)
+wei = q @ k.transpose(-2, -1) * head_size**-0.5
 wei = wei.masked_fill(tril == 0, float('-inf'))
 wei = F.softmax(wei, dim=-1)
 
