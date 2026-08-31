@@ -8,6 +8,7 @@ block_size = 8
 max_iters = 3000
 eval_interval = 300
 n_embd = 32
+dropout = 0.2
 learning_rate = 1e-2
 device = 'mps' if torch.backends.mps.is_available() else 'cpu'
 eval_iters = 200
@@ -81,6 +82,7 @@ class Head(nn.Module):
 
     def __init__(self, head_size):
         super().__init__()
+        self.dropout = nn.Dropout(dropout)
         self.key = nn.Linear(n_embd, head_size, bias=False)
         self.query = nn.Linear(n_embd, head_size, bias=False)
         self.value = nn.Linear(n_embd, head_size, bias=False)
@@ -104,7 +106,7 @@ class Head(nn.Module):
         )
 
         wei = F.softmax(wei, dim=-1)
-
+        wei = self.dropout(wei)
         v = self.value(x)
         out = wei @ v
 
