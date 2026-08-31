@@ -15,3 +15,11 @@ for b in range(B):
         xbow[b, t] = torch.mean(xprev, 0)
 
 print(xbow)
+
+wei = torch.tril(torch.ones(T, T))
+wei = wei / wei.sum(1, keepdim=True)
+
+xbow2 = wei @ x
+print(xbow2)
+
+print(torch.allclose(xbow, xbow2))
