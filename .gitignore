@@ -1,2 +1,17 @@
-.venv/
+# Python
 __pycache__/
+*.py[cod]
+*.pyc
+
+# Virtual environment
+.venv/
+venv/
+
+# VS Code
+.vscode/
+
+# PyTorch checkpoint
+checkpoint.pt
+
+# OS files
+.DS_Store

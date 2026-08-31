@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -256,50 +257,91 @@ print(sum(p.numel() for p in m.parameters()) / 1e6, 'M parameters')
 
 
 # create a PyTorch optimizer
-optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-# for iter in range(max_iters):
+checkpoint_path = "checkpoint.pt"
 
-#     # sample a batch of data
-#     xb, yb = get_batch('train')
+if os.path.exists(checkpoint_path):
 
-#     # give the batch to the model
-#     logits, loss = model(xb, yb)
+    print("Loading saved model...")
 
-#     # clear old gradients
-#     optimizer.zero_grad(set_to_none=True)
+    model.load_state_dict(
+        torch.load(checkpoint_path, map_location=device)
+    )
 
-#     # calculate gradients
-#     loss.backward()
+    model.eval()
 
-#     # update the model's parameters
-#     optimizer.step()
-for iter in range(max_iters):
+else:
 
-    # every once in a while evaluate the loss on train and val sets
-    if iter % eval_interval == 0 or iter == max_iters - 1:
-        losses = estimate_loss()
-        print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+    print("No checkpoint found. Training model...")
 
-    # sample a batch of data
-    xb, yb = get_batch('train')
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=learning_rate
+    )
 
-    # evaluate the loss
-    logits, loss = model(xb, yb)
+    for iter in range(max_iters):
 
-    # clear old gradients
-    optimizer.zero_grad(set_to_none=True)
+        # every once in a while evaluate the loss
+        if iter % eval_interval == 0 or iter == max_iters - 1:
+            losses = estimate_loss()
 
-    # calculate gradients
-    loss.backward()
+            print(
+                f"step {iter}: "
+                f"train loss {losses['train']:.4f}, "
+                f"val loss {losses['val']:.4f}"
+            )
 
-    # update the model's parameters
-    optimizer.step()
+        # sample batch
+        xb, yb = get_batch('train')
+
+        # forward pass
+        logits, loss = model(xb, yb)
+
+        # clear old gradients
+        optimizer.zero_grad(set_to_none=True)
+
+        # backward pass
+        loss.backward()
+
+        # update model
+        optimizer.step()
+
+    # save trained model
+    torch.save(model.state_dict(), checkpoint_path)
+
+    print("Model saved to checkpoint.pt")
 
 # generate from the model
-# generate from the model
+
+model.eval()
+
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
 
-print("Temperature 0.5:")
-print(decode(
-    m.generate(context, max_new_tokens=500, temperature=0.5)[0].tolist()
-))
+while True:
+
+    prompt = input("\nEnter a prompt (or type 'quit'): ")
+
+    if prompt.lower() == "quit":
+        break
+
+    if len(prompt) == 0:
+        context = torch.zeros(
+            (1, 1),
+            dtype=torch.long,
+            device=device
+        )
+    else:
+        context = torch.tensor(
+            [encode(prompt)],
+            dtype=torch.long,
+            device=device
+        )
+
+    with torch.no_grad():
+        generated = model.generate(
+            context,
+            max_new_tokens=300,
+            temperature=0.5
+        )[0].tolist()
+
+    print("\nGenerated text:\n")
+    print(decode(generated))
