@@ -8,6 +8,8 @@ block_size = 8
 max_iters = 3000
 eval_interval = 300
 n_embd = 32
+n_head = 4
+n_layer = 4
 dropout = 0.2
 learning_rate = 1e-2
 device = 'mps' if torch.backends.mps.is_available() else 'cpu'
@@ -183,7 +185,7 @@ class BigramLanguageModel(nn.Module):
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
 
         self.blocks = nn.Sequential(
-            Block(n_embd, n_head=4)
+            *[Block(n_embd, n_head=n_head) for _ in range(n_layer)]
         )
 
         self.lm_head = nn.Linear(n_embd, vocab_size)
