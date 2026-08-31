@@ -84,6 +84,10 @@ class BigramLanguageModel(nn.Module):
 
     def forward(self, idx, targets=None):
         # idx and targets are both (B,T) tensor of integers
+        # B = 32 sequences
+        # T = 8 characters in each sequence
+        # C = 65 possible next characters
+
         logits = self.token_embedding_table(idx) # (B,T,C)
 
         if targets is None:
@@ -92,6 +96,44 @@ class BigramLanguageModel(nn.Module):
             B, T, C = logits.shape
             logits = logits.view(B*T, C)
             targets = targets.view(B*T)
-            loss = F.cross_entropy(logits, targets)
-
+            loss = F.cross_entropy(logits, targets) #compare for loss
+            # How much probability did the model give to the correct character?
         return logits, loss   
+
+    def generate(self, idx, max_new_tokens):
+        # idx is (B, T) array of indices in the current context
+        for _ in range(max_new_tokens):
+            # get the predictions
+            logits, loss = self(idx)
+            # focus only on the last time step
+            logits = logits[:, -1, :]
+            # apply softmax to get probabilities
+            probs = F.softmax(logits, dim=-1)
+            # sample from the distribution
+            idx_next = torch.multinomial(probs, num_samples=1)
+            # append sampled index to the running sequence
+            idx = torch.cat((idx, idx_next), dim=1)
+        return idx
+
+
+    
+#     idx (input character IDs)
+#         ↓
+#      forward()
+#         ↓
+#   model makes predictions
+#         ↓
+#   compare predictions with correct answers
+#         ↓
+#   return predictions + loss
+
+model = BigramLanguageModel(vocab_size)
+m = model.to(device)
+
+# xb, yb = get_batch('train')
+# logits, loss = model(xb, yb)
+# print(logits.shape)
+# print(loss)
+
+context = torch.zeros((1, 1), dtype=torch.long, device=device)
+print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
