@@ -7,6 +7,7 @@ batch_size = 32
 block_size = 8
 max_iters = 3000
 eval_interval = 300
+n_embd = 32
 learning_rate = 1e-2
 device = 'mps' if torch.backends.mps.is_available() else 'cpu'
 eval_iters = 200
@@ -81,14 +82,18 @@ class BigramLanguageModel(nn.Module):
         super().__init__()
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
+        self.position_embedding_table = nn.Embedding(block_size, n_embd)
 
     def forward(self, idx, targets=None):
+        B, T = idx.shape
         # idx and targets are both (B,T) tensor of integers
         # B = 32 sequences
         # T = 8 characters in each sequence
         # C = 65 possible next characters
 
-        logits = self.token_embedding_table(idx) # (B,T,C)
+        ltok_emb = self.token_embedding_table(idx)
+        pos_emb = self.position_embedding_table(torch.arange(T, device=device))
+        x = tok_emb + pos_emb
 
         if targets is None:
             loss = None
@@ -135,8 +140,8 @@ m = model.to(device)
 # print(logits.shape)
 # print(loss)
 
-context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
+# context = torch.zeros((1, 1), dtype=torch.long, device=device)
+# print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
 
 
 # create a PyTorch optimizer
@@ -159,14 +164,16 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 #     optimizer.step()
 for iter in range(max_iters):
 
+    # every once in a while evaluate the loss on train and val sets
+    if iter % eval_interval == 0 or iter == max_iters - 1:
+        losses = estimate_loss()
+        print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+
     # sample a batch of data
     xb, yb = get_batch('train')
 
     # evaluate the loss
     logits, loss = model(xb, yb)
-
-    if iter % eval_interval == 0:
-        print(f"step {iter}: loss {loss.item():.4f}")
 
     # clear old gradients
     optimizer.zero_grad(set_to_none=True)
@@ -176,3 +183,7 @@ for iter in range(max_iters):
 
     # update the model's parameters
     optimizer.step()
+
+# generate from the model
+context = torch.zeros((1, 1), dtype=torch.long, device=device)
+print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
