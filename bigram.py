@@ -3,15 +3,15 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 # hyperparameters
-batch_size = 32
-block_size = 8
-max_iters = 3000
-eval_interval = 300
-n_embd = 32
+batch_size = 64
+block_size = 128
+max_iters = 5000
+eval_interval = 500
+n_embd = 128
 n_head = 4
 n_layer = 4
 dropout = 0.2
-learning_rate = 1e-2
+learning_rate = 3e-4
 device = 'mps' if torch.backends.mps.is_available() else 'cpu'
 eval_iters = 200
 # ------------
@@ -188,6 +188,8 @@ class BigramLanguageModel(nn.Module):
             *[Block(n_embd, n_head=n_head) for _ in range(n_layer)]
         )
 
+        self.ln_f = nn.LayerNorm(n_embd)
+
         self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
@@ -199,8 +201,10 @@ class BigramLanguageModel(nn.Module):
 
         tok_emb = self.token_embedding_table(idx)
         pos_emb = self.position_embedding_table(torch.arange(T, device=device))
+
         x = tok_emb + pos_emb
         x = self.blocks(x)
+        x = self.ln_f(x)
         logits = self.lm_head(x)
 
         if targets is None:
