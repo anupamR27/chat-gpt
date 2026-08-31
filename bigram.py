@@ -124,6 +124,7 @@ class MultiHeadAttention(nn.Module):
         )
 
         self.proj = nn.Linear(num_heads * head_size, n_embd)
+        self.dropout = nn.Dropout(dropout)  
 
     def forward(self, x):
         out = torch.cat(
@@ -132,11 +133,11 @@ class MultiHeadAttention(nn.Module):
         )
 
         out = self.proj(out)
-
+        out = self.dropout(out)  
+        
         return out
 
 class FeedForward(nn.Module):
-    """a simple linear layer followed by a non-linearity"""
 
     def __init__(self, n_embd):
         super().__init__()
@@ -145,11 +146,11 @@ class FeedForward(nn.Module):
             nn.Linear(n_embd, 4 * n_embd),
             nn.ReLU(),
             nn.Linear(4 * n_embd, n_embd),
+            nn.Dropout(dropout),
         )
 
     def forward(self, x):
         return self.net(x)
-    
 class Block(nn.Module):
     """Transformer block: communication followed by computation"""
 
