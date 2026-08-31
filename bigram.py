@@ -89,28 +89,22 @@ class Head(nn.Module):
         self.query = nn.Linear(n_embd, head_size, bias=False)
         self.value = nn.Linear(n_embd, head_size, bias=False)
 
-        self.register_buffer(
-            'tril',
-            torch.tril(torch.ones(block_size, block_size))
-        )
+        
 
     def forward(self, x):
         B, T, C = x.shape
 
         k = self.key(x)
         q = self.query(x)
-
-        wei = q @ k.transpose(-2, -1) * k.shape[-1]**-0.5
-
-        wei = wei.masked_fill(
-            self.tril[:T, :T] == 0,
-            float('-inf')
-        )
-
-        wei = F.softmax(wei, dim=-1)
-        wei = self.dropout(wei)
         v = self.value(x)
-        out = wei @ v
+
+        out = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            is_causal=True,
+            dropout_p=dropout if self.training else 0.0
+        )
 
         return out
 
@@ -217,7 +211,7 @@ class BigramLanguageModel(nn.Module):
             # How much probability did the model give to the correct character?
         return logits, loss   
 
-    def generate(self, idx, max_new_tokens):
+    def generate(self, idx, max_new_tokens, temperature=1.0):
         for _ in range(max_new_tokens):
 
             idx_cond = idx[:, -block_size:]
@@ -225,6 +219,8 @@ class BigramLanguageModel(nn.Module):
             logits, loss = self(idx_cond)
 
             logits = logits[:, -1, :]
+
+            logits = logits / temperature
 
             probs = F.softmax(logits, dim=-1)
 
@@ -248,6 +244,7 @@ class BigramLanguageModel(nn.Module):
 
 model = BigramLanguageModel(vocab_size)
 m = model.to(device)
+print(sum(p.numel() for p in m.parameters()) / 1e6, 'M parameters')
 
 # xb, yb = get_batch('train')
 # logits, loss = model(xb, yb)
@@ -299,5 +296,10 @@ for iter in range(max_iters):
     optimizer.step()
 
 # generate from the model
+# generate from the model
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
+
+print("Temperature 0.5:")
+print(decode(
+    m.generate(context, max_new_tokens=500, temperature=0.5)[0].tolist()
+))
